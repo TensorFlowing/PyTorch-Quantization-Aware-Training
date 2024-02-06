@@ -2,6 +2,7 @@ import os
 import random
 
 import torch
+print("torch version: ", torch.__version__)
 import torch.nn as nn
 import torch.optim as optim
 import torchvision
@@ -343,15 +344,15 @@ def main():
                                                    eval_batch_size=256)
 
     # Train model.
-    print("Training Model...")
-    model = train_model(model=model,
-                        train_loader=train_loader,
-                        test_loader=test_loader,
-                        device=cuda_device,
-                        learning_rate=1e-1,
-                        num_epochs=200)
+    # print("Training Model...")
+    # model = train_model(model=model,
+    #                     train_loader=train_loader,
+    #                     test_loader=test_loader,
+    #                     device=cuda_device,
+    #                     learning_rate=1e-1,
+    #                     num_epochs=20)
     # Save model.
-    save_model(model=model, model_dir=model_dir, model_filename=model_filename)
+    # save_model(model=model, model_dir=model_dir, model_filename=model_filename)
     # Load a pretrained model.
     model = load_model(model=model,
                        model_filepath=model_filepath,
@@ -361,31 +362,15 @@ def main():
     # Make a copy of the model for layer fusion
     fused_model = copy.deepcopy(model)
 
-    model.train()
-    # The model has to be switched to training mode before any layer fusion.
-    # Otherwise the quantization aware training will not work correctly.
-    fused_model.train()
+    # model.train()
+    # # The model has to be switched to training mode before any layer fusion.
+    # # Otherwise the quantization aware training will not work correctly.
 
-    # Fuse the model in place rather manually.
-    fused_model = torch.quantization.fuse_modules(fused_model,
-                                                  [["conv1", "bn1", "relu"]],
-                                                  inplace=True)
-    for module_name, module in fused_model.named_children():
-        if "layer" in module_name:
-            for basic_block_name, basic_block in module.named_children():
-                torch.quantization.fuse_modules(
-                    basic_block, [["conv1", "bn1", "relu1"], ["conv2", "bn2"]],
-                    inplace=True)
-                for sub_block_name, sub_block in basic_block.named_children():
-                    if sub_block_name == "downsample":
-                        torch.quantization.fuse_modules(sub_block,
-                                                        [["0", "1"]],
-                                                        inplace=True)
 
-    # Print FP32 model.
-    print(model)
-    # Print fused model.
-    print(fused_model)
+    # # Print FP32 model.
+    # print(model)
+    # # Print fused model.
+    # print(fused_model)
 
     # Model and fused model should be equivalent.
     model.eval()
@@ -430,16 +415,36 @@ def main():
                 test_loader=test_loader,
                 device=cuda_device,
                 learning_rate=1e-3,
-                num_epochs=10)
+                num_epochs=2)
     quantized_model.to(cpu_device)
 
     # Using high-level static quantization wrapper
     # The above steps, including torch.quantization.prepare, calibrate_model, and torch.quantization.convert, are also equivalent to
     # quantized_model = torch.quantization.quantize_qat(model=quantized_model, run_fn=train_model, run_args=[train_loader, test_loader, cuda_device], mapping=None, inplace=False)
 
-    quantized_model = torch.quantization.convert(quantized_model, inplace=True)
 
     quantized_model.eval()
+
+    print("quantized_model: ", quantized_model)
+    # Fuse the model in place rather manually.
+    quantized_model = torch.quantization.fuse_modules(quantized_model,
+                                                  [["conv1", "bn1", "relu"]],
+                                                  inplace=True)
+    for module_name, module in quantized_model.named_children():
+        if "layer" in module_name:
+            for basic_block_name, basic_block in module.named_children():
+                torch.quantization.fuse_modules(
+                    basic_block, [["conv1", "bn1", "relu1"], ["conv2", "bn2"]],
+                    inplace=True)
+                for sub_block_name, sub_block in basic_block.named_children():
+                    if sub_block_name == "downsample":
+                        torch.quantization.fuse_modules(sub_block,
+                                                        [["0", "1"]],
+                                                        inplace=True)
+
+
+    quantized_model = torch.quantization.convert(quantized_model, inplace=True)
+
 
     # Print quantized model.
     print(quantized_model)

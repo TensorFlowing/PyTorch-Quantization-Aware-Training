@@ -4,7 +4,7 @@
 import torch
 from torch import Tensor
 import torch.nn as nn
-from torchvision.models.utils import load_state_dict_from_url
+# from torchvision.models.utils import load_state_dict_from_url
 from typing import Type, Any, Callable, Union, List, Optional
 
 __all__ = [
@@ -316,8 +316,9 @@ def _resnet(arch: str, block: Type[Union[BasicBlock,
             pretrained: bool, progress: bool, **kwargs: Any) -> ResNet:
     model = ResNet(block, layers, **kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(model_urls[arch],
-                                              progress=progress)
+        # state_dict = load_state_dict_from_url(model_urls[arch],
+                                            #   progress=progress)
+        state_dict = torch.hub.load_state_dict_from_url(model_urls[arch], progress=progress)
         model.load_state_dict(state_dict)
     return model
 
